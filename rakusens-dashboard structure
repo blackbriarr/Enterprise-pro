@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rakusens Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const roleSelect = document.getElementById('role');
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const role = roleSelect.value;
+
+                document.querySelectorAll('section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+
+                document.getElementById('navigation').classList.remove('hidden');
+
+                if (role === 'admin') {
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    document.getElementById('user-management').classList.remove('hidden');
+                    document.getElementById('sensor-management').classList.remove('hidden');
+                } else if (role === 'operator') {
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    document.getElementById('alerts').classList.remove('hidden');
+                }
+            });
+
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = e.target.getAttribute('data-target');
+
+                    document.querySelectorAll('section').forEach(section => {
+                        section.classList.add('hidden');
+                    });
+
+                    document.getElementById(target).classList.remove('hidden');
+                });
+            });
+
+            // Live Dashboard Logic
+            const ctx = document.getElementById('live-chart').getContext('2d');
+            const historyTable = document.getElementById('history-table');
+
+            const liveData = {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Sensor 1',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Sensor 2',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }
+                ]
+            };
+
+            const liveChart = new Chart(ctx, {
+                type: 'line',
+                data: liveData,
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'second'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            function generateRandomTemperature() {
+                return Math.random() * (100 - 20) + 20;
+            }
+
+            setInterval(() => {
+                const now = new Date();
+                const sensor1Temp = generateRandomTemperature();
+                const sensor2Temp = generateRandomTemperature();
+
+                liveData.labels.push(now);
+                liveData.datasets[0].data.push(sensor1Temp);
+                liveData.datasets[1].data.push(sensor2Temp);
+
+                if (liveData.labels.length > 20) {
+                    liveData.labels.shift();
+                    liveData.datasets[0].data.shift();
+                    liveData.datasets[1].data.shift();
+                }
+
+                const newRow = historyTable.insertRow(1);
+                newRow.innerHTML = `<td>${now.toLocaleTimeString()}</td><td>${sensor1Temp.toFixed(2)}°C</td><td>${sensor2Temp.toFixed(2)}°C</td>`;
+
+                liveChart.update();
+            }, 2000);
+        });
+    </script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow hidden" id="navigation">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-blue-600">Rakusens Dashboard</h1>
+            <div class="space-x-4">
+                <a href="#" class="nav-link text-blue-600 hover:underline" data-target="dashboard">Dashboard</a>
+                <a href="#" class="nav-link text-blue-600 hover:underline hidden" data-target="user-management">User Management</a>
+                <a href="#" class="nav-link text-blue-600 hover:underline hidden" data-target="sensor-management">Sensor Management</a>
+                <a href="#" class="nav-link text-blue-600 hover:underline hidden" data-target="alerts">Alerts</a>
+                <a href="#" class="nav-link text-blue-600 hover:underline hidden" data-target="reports">Reports</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Login Page -->
+        <section class="flex items-center justify-center min-h-screen" id="login">
+            <div class="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
+                <h2 class="text-2xl font-bold text-center text-blue-600">Login</h2>
+                <p class="text-center text-gray-600">Login to your account</p>
+                <form id="login-form" class="mt-6 space-y-4">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" id="username" name="username" 
+                            class="w-full p-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            placeholder="Enter your username" required>
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="password" name="password" 
+                            class="w-full p-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            placeholder="Enter your password" required>
+                    </div>
+                    <div>
+                        <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+                        <select id="role" name="role" class="w-full p-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                            <option value="">Select Role</option>
+                            <option value="admin">Administrator</option>
+                            <option value="operator">Operator</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Login
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Dashboard Page -->
+        <section class="hidden p-8" id="dashboard">
+            <h2 class="text-2xl font-bold text-center text-blue-600">Dashboard</h2>
+            <p class="text-center text-gray-600">Monitor real-time temperature data</p>
+            <div class="mt-6 bg-white shadow-lg rounded-2xl p-4">
+                <h3 class="text-lg font-bold">Live Temperature Monitoring</h3>
+                <canvas id="live-chart" class="mt-4"></canvas>
+            </div>
+            <div class="mt-6 bg-white shadow-lg rounded-2xl p-4">
+                <h3 class="text-lg font-bold">Temperature History</h3>
+                <table class="mt-4 w-full table-auto">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="px-4 py-2">Time</th>
+                            <th class="px-4 py-2">Sensor 1</th>
+                            <th class="px-4 py-2">Sensor 2</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table">
+                        <!-- Historical Data Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Other Pages -->
+        <!-- Alerts, Reports, User Management, and Sensor Management remain unchanged -->
+    </main>
+
+    <footer class="bg-white py-4 shadow">
+        <div class="container mx-auto text-center text-gray-600">
+            © 2025 Rakusens. All rights reserved.
+        </div>
+    </footer>
+</body>
+</html>

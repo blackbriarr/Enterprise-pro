@@ -1,57 +1,76 @@
-from fastapi import FastAPI, Query
-from simulator import generate_simulated_data
-from db import get_connection
-from ml import load_model, make_prediction
-import pandas as pd
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
+from db import get_connection
+import traceback
+import mysql.connector
 
 app = FastAPI()
 
-# ✅ Allow requests from React frontend (http://localhost:5173)
+# CORS Configuration
+origins = ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # or ["*"] during development
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# Load ML model
-model = load_model("models/prophet_r01.pkl")  # Example model
-
-@app.get("/")
-def root():
-    return {"message": "Rakusens Sensor API running"}
+def get_table(sensor_id: str) -> str:
+    """
+    Determine the table based on sensor ID.
+    r01 - r08 -> line4
+    r09 - r18 -> line5
+    """
+    try:
+        sensor_num = int(sensor_id[1:])
+        if 1 <= sensor_num <= 8:
+            return "line4"
+        elif 9 <= sensor_num <= 18:
+            return "line5"
+        else:
+            raise ValueError("Sensor number out of expected range.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid sensor ID format.")
 
 @app.get("/api/realtime/{sensor_id}")
-def realtime(sensor_id: str):
-    return generate_simulated_data(sensor_id)
-
-@app.get("/api/historical/{sensor_id}")
-def historical(sensor_id: str, start: str = Query(...), end: str = Query(...)):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    query = """
-        SELECT timestamp, temperature FROM sensor_data
-        WHERE sensor_id = %s AND timestamp BETWEEN %s AND %s
-    """
-    cursor.execute(query, (sensor_id, start, end))
-    data = cursor.fetchall()
-    conn.close()
-    return data
-
-@app.post("/api/predict")
-def predict(payload: dict):
-    timestamps = payload.get("timestamps", [])
-    result = make_prediction(model, timestamps)
-    return result.to_dict(orient="records")
-
-@app.get("/api/test-db")
-def test_db():
+def get_realtime_data(sensor_id: str):
     try:
+        table = get_table(sensor_id)
+        query = f"SELECT timestamp, {sensor_id} FROM {table} ORDER BY timestamp DESC LIMIT 1"
+
+        print(f"[DEBUG] Executing Query: {query}")
         conn = get_connection()
-        return {"message": "Connected to DB successfully!"}
+        cursor = conn.cursor()
+        cursor.execute(query)
+
+        result = cursor.fetchone()
+        if not result:
+            print(f"[DEBUG] No data found for sensor: {sensor_id}")
+            raise HTTPException(status_code=404, detail="No data found for this sensor.")
+
+        timestamp, temperature = result
+        print(f"[DEBUG] Result -> Timestamp: {timestamp}, Temperature: {temperature}")
+
+        return {
+            "sensor_id": sensor_id,
+            "timestamp": timestamp,
+            "temperature": temperature,
+        }
+
+    except mysql.connector.Error as sql_err:
+        print("[ERROR] MySQL Error:", sql_err)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"MySQL error: {sql_err}")
+
     except Exception as e:
-        return {"error": str(e)}
+        print("[ERROR] Unexpected Error:", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Server error occurred.")
+
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass

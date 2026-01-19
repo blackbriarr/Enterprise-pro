@@ -86,7 +86,7 @@ A structured timeline using Gantt should include:
 • Testing and deployment
 7. GitHub
 • Source code repository. 
-• Minutes of meetings documentation. 
+• Meeting minutes documentation. 
 • Version control track.
 
 
